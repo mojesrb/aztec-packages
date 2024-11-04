@@ -239,6 +239,7 @@ TEST_F(AvmExecutionTests, setAndSubOpcodes)
 // the result at offset 1.
 TEST_F(AvmExecutionTests, powerWithMulOpcodes)
 {
+    const int NUM_MUL_ITERATIONS = 12;
     std::string bytecode_hex = to_hex(OpCode::SET_8) + // opcode SET
                                "00"                    // Indirect flag
                                + to_hex(AvmMemoryTag::U64) +
@@ -261,7 +262,7 @@ TEST_F(AvmExecutionTests, powerWithMulOpcodes)
                                 "0000"                   // ret offset 0
                                 "0000";                  // ret size 0
 
-    for (int i = 0; i < 12; i++) {
+    for (int i = 0; i < NUM_MUL_ITERATIONS; i++) {
         bytecode_hex.append(mul_hex);
     }
 
@@ -282,7 +283,7 @@ TEST_F(AvmExecutionTests, powerWithMulOpcodes)
                                         VariantWith<uint8_t>(1)))));
 
     // MUL last pos
-    EXPECT_THAT(instructions.at(13),
+    EXPECT_THAT(instructions.at(NUM_MUL_ITERATIONS + 1),
                 AllOf(Field(&Instruction::op_code, OpCode::MUL_8),
                       Field(&Instruction::operands,
                             ElementsAre(VariantWith<uint8_t>(0),
@@ -291,7 +292,7 @@ TEST_F(AvmExecutionTests, powerWithMulOpcodes)
                                         VariantWith<uint8_t>(1)))));
 
     // RETURN
-    EXPECT_THAT(instructions.at(14),
+    EXPECT_THAT(instructions.at(NUM_MUL_ITERATIONS + 2),
                 AllOf(Field(&Instruction::op_code, OpCode::RETURN),
                       Field(&Instruction::operands,
                             ElementsAre(VariantWith<uint8_t>(0), VariantWith<uint16_t>(0), VariantWith<uint16_t>(0)))));
@@ -299,13 +300,20 @@ TEST_F(AvmExecutionTests, powerWithMulOpcodes)
     auto trace = gen_trace_from_bytecode(bytecode);
 
     // Find the first row enabling the multiplication selector and pc of last multiplication
-    const auto last_mul_pc =
-        2 * Deserialization::get_pc_increment(OpCode::SET_8) + 11 * Deserialization::get_pc_increment(OpCode::MUL_8);
+    const auto last_mul_pc = 2 * Deserialization::get_pc_increment(OpCode::SET_8) +
+                             (NUM_MUL_ITERATIONS - 1) * Deserialization::get_pc_increment(OpCode::MUL_8);
 
     auto row = std::ranges::find_if(trace.begin(), trace.end(), [last_mul_pc](Row r) {
         return r.main_sel_op_mul == 1 && r.main_pc == last_mul_pc;
     });
-    EXPECT_EQ(row->main_ic, 244140625); // 5^12 = 244140625
+
+    int result = 1;
+    // Compute 5 ^ NUM_MUL_ITERATIONS
+    for (int i = 0; i < NUM_MUL_ITERATIONS; i++) {
+        result *= 5;
+    }
+
+    EXPECT_EQ(row->main_ic, result);
 
     validate_trace(std::move(trace), public_inputs);
 }
