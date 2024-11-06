@@ -58,28 +58,56 @@ export function computeArtifactHashPreimage(artifact: ContractArtifact) {
   return { privateFunctionRoot, unconstrainedFunctionRoot, metadataHash };
 }
 
-export function computeArtifactMetadataHash(artifact: ContractArtifact) {
-  // TODO: #6021 We need to make sure the artifact is deterministic from any specific compiler run. This relates to selectors not being sorted and being
-  // apparently random in the order they appear after compiled w/ nargo. We can try to sort this upon loading an artifact.
-  // TODO: #6021: Should we use the sorted event selectors instead? They'd need to be unique for that.
-  // Response - The output selectors need to be sorted, because if not noir makes no guarantees on the order of outputs for some reason
+const sortAndHashArtifactMetadata = (metadata: Record<string | number, NonNullable<any>>) => {
+  const obj = structuredClone(metadata);
 
+  const sortAndHashNestedObject = (obj: Record<string | number, NonNullable<any>>) => {
+    if (Array.isArray(obj)) {
+      for (let i = 0; i < obj.length; i++) {
+        if (Array.isArray(obj[i]) || (typeof obj[i] === 'object' && obj[i] !== null)) {
+          obj[i] = sortAndHashNestedObject(obj[i]);
+        }
+      }
+
+      const sorted = obj.sort();
+
+      const hashed = sha256Fr(Buffer.from(JSON.stringify(sorted), 'utf-8'));
+
+      return hashed;
+    }
+
+    if (typeof obj === 'object') {
+      for (const [key, value] of Object.entries(obj)) {
+        if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
+          obj[key] = sortAndHashNestedObject(value);
+        }
+      }
+
+      const sorted = Object.keys(obj)
+        .sort()
+        .reduce(
+          (acc, key) => ({
+            ...acc,
+            [key]: obj[key],
+          }),
+          {},
+        );
+
+      const hashed = sha256Fr(Buffer.from(JSON.stringify(sorted), 'utf-8'));
+
+      return hashed;
+    }
+
+    throw new Error('Can only be called on an object or array');
+  };
+
+  return sortAndHashNestedObject(obj);
+};
+
+export function computeArtifactMetadataHash(artifact: ContractArtifact) {
   const metadata = { name: artifact.name, outputs: artifact.outputs };
 
-  const exceptions: string[] = [
-    'AuthRegistry',
-    'FeeJuice',
-    'ContractInstanceDeployer',
-    'ContractClassRegisterer',
-    'Router',
-  ];
-
-  // This is a temporary workaround for the canonical contracts to have deterministic deployments.
-  if (exceptions.includes(artifact.name)) {
-    return sha256Fr(Buffer.from(JSON.stringify({ name: artifact.name }), 'utf-8'));
-  }
-
-  return sha256Fr(Buffer.from(JSON.stringify(metadata), 'utf-8'));
+  return sortAndHashArtifactMetadata(metadata);
 }
 
 export function computeArtifactFunctionTreeRoot(artifact: ContractArtifact, fnType: FunctionType) {
