@@ -140,15 +140,14 @@ export function computeFunctionArtifactHash(
     | (Pick<FunctionArtifact, 'bytecode'> & { functionMetadataHash: Fr; selector: FunctionSelector }),
 ) {
   const selector = 'selector' in fn ? fn.selector : FunctionSelector.fromNameAndParameters(fn);
-  // TODO(#5860): make bytecode part of artifact hash preimage again
-  // const bytecodeHash = sha256Fr(fn.bytecode).toBuffer();
-  // const metadataHash = 'functionMetadataHash' in fn ? fn.functionMetadataHash : computeFunctionMetadataHash(fn);
-  // return sha256Fr(Buffer.concat([numToUInt8(VERSION), selector.toBuffer(), metadataHash.toBuffer(), bytecodeHash]));
-  return sha256Fr(Buffer.concat([numToUInt8(VERSION), selector.toBuffer()]));
+
+  const bytecodeHash = sha256Fr(fn.bytecode).toBuffer();
+  const metadataHash = 'functionMetadataHash' in fn ? fn.functionMetadataHash : computeFunctionMetadataHash(fn);
+  return sha256Fr(Buffer.concat([numToUInt8(VERSION), selector.toBuffer(), metadataHash.toBuffer(), bytecodeHash]));
 }
 
 export function computeFunctionMetadataHash(fn: FunctionArtifact) {
-  return sha256Fr(Buffer.from(JSON.stringify(fn.returnTypes), 'utf8'));
+  return sortAndHashArtifactMetadata(fn.returnTypes);
 }
 
 function getLogger() {

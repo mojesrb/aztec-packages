@@ -19,6 +19,17 @@ echo "Compiling contracts..."
 NARGO=${NARGO:-../../noir/noir-repo/target/release/nargo}
 $NARGO compile --silence-warnings --inliner-aggressiveness 0
 
+protocol_contracts=$(jq -r '.[]' "./protocol_contracts.json")
+for contract in $protocol_contracts; do
+    artifactPath="./target/$contract.json"
+    readarray -t fnNames < <(jq -r '.functions[] | select(.custom_attributes | index("private")) | .name' "$artifactPath")
+    readarray -t fnBytecodes < <(jq -r '.functions[] | select(.custom_attributes | index("private")) | .bytecode' "$artifactPath")
+
+    for i in "${!fnBytecodes[@]}"; do
+      echo "${fnNames[$i]}, $(echo -n "${fnBytecodes[$i]}" | sha256sum | awk '{print $1}')"
+    done
+done
+
 echo "Generating protocol contract vks..."
 BB_HASH=${BB_HASH:-$(cd ../../ && git ls-tree -r HEAD | grep 'barretenberg/cpp' | awk '{print $3}' | git hash-object --stdin)}
 echo Using BB hash $BB_HASH

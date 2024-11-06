@@ -82,6 +82,16 @@ contract ContractInstanceDeployer {
     }
 
     #[private]
+    fn foo_bar(a: Field) -> Field {
+        a + 1
+    }
+
+    #[private]
+    fn bar_far(a: Field, b: Field) -> Field {
+        a + b
+    }
+
+    #[private]
     fn deploy(
         salt: Field,
         contract_class_id: ContractClassId,
