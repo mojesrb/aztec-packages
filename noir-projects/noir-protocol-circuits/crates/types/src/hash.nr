@@ -14,7 +14,7 @@ use crate::{
     },
     merkle_tree::root::root_from_sibling_path,
     messaging::l2_to_l1_message::{L2ToL1Message, ScopedL2ToL1Message},
-    recursion::verification_key::VerificationKey,
+    proof::verification_key::VerificationKey,
     traits::{is_empty, ToField},
     utils::field::field_from_bytes_32_trunc,
 };
@@ -127,16 +127,6 @@ pub fn silo_unencrypted_log_hash(log_hash: ScopedLogHash) -> Field {
 
 pub fn merkle_hash(left: Field, right: Field) -> Field {
     poseidon2_hash([left, right])
-}
-
-pub fn stdlib_recursion_verification_key_compress_native_vk<let N: u32>(
-    _vk: VerificationKey<N>,
-) -> Field {
-    // Original cpp code
-    // stdlib::recursion::verification_key<CT::bn254>::compress_native(private_call.vk, GeneratorIndex::VK);
-    // The above cpp method is only ever called on verification key, so it has been special cased here
-    let _hash_index = GENERATOR_INDEX__VK;
-    0
 }
 
 pub fn compute_l2_to_l1_hash(

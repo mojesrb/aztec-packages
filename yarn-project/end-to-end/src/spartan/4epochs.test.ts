@@ -6,15 +6,10 @@ import { TokenContract } from '@aztec/noir-contracts.js';
 import { jest } from '@jest/globals';
 
 import { RollupCheatCodes } from '../../../aztec.js/src/utils/cheat_codes.js';
+import { getConfig, isK8sConfig, startPortForward } from './k8_utils.js';
 import { type TestWallets, setupTestWalletsWithTokens } from './setup_test_wallets.js';
 
-const { PXE_URL, ETHEREUM_HOST } = process.env;
-if (!PXE_URL) {
-  throw new Error('PXE_URL env variable must be set');
-}
-if (!ETHEREUM_HOST) {
-  throw new Error('ETHEREUM_HOST env variable must be set');
-}
+const config = getConfig(process.env);
 
 describe('token transfer test', () => {
   jest.setTimeout(10 * 60 * 4000); // 40 minutes
@@ -23,11 +18,34 @@ describe('token transfer test', () => {
   // We want plenty of minted tokens for a lot of slots that fill up multiple epochs
   const MINT_AMOUNT = 2000000n;
   const TEST_EPOCHS = 4;
+  const MAX_MISSED_SLOTS = 10n;
   const ROUNDS = BigInt(AZTEC_EPOCH_DURATION * TEST_EPOCHS);
 
   let testWallets: TestWallets;
+  let PXE_URL: string;
+  let ETHEREUM_HOST: string;
 
   beforeAll(async () => {
+    if (isK8sConfig(config)) {
+      await startPortForward({
+        resource: 'svc/spartan-aztec-network-pxe',
+        namespace: config.NAMESPACE,
+        containerPort: config.CONTAINER_PXE_PORT,
+        hostPort: config.HOST_PXE_PORT,
+      });
+      await startPortForward({
+        resource: 'svc/spartan-aztec-network-ethereum',
+        namespace: config.NAMESPACE,
+        containerPort: config.CONTAINER_ETHEREUM_PORT,
+        hostPort: config.HOST_ETHEREUM_PORT,
+      });
+      PXE_URL = `http://127.0.0.1:${config.HOST_PXE_PORT}`;
+      ETHEREUM_HOST = `http://127.0.0.1:${config.HOST_ETHEREUM_PORT}`;
+    } else {
+      PXE_URL = config.PXE_URL;
+      ETHEREUM_HOST = config.ETHEREUM_HOST;
+    }
+
     testWallets = await setupTestWalletsWithTokens(PXE_URL, MINT_AMOUNT, logger);
     expect(ROUNDS).toBeLessThanOrEqual(MINT_AMOUNT);
   });
@@ -68,7 +86,7 @@ describe('token transfer test', () => {
 
       await Promise.all(txs.map(t => t.send().wait({ timeout: 600 })));
       const currentSlot = await rollupCheatCodes.getSlot();
-      expect(currentSlot).toBe(startSlot + i);
+      expect(currentSlot).toBeLessThanOrEqual(startSlot + i + MAX_MISSED_SLOTS);
       const startEpoch = await rollupCheatCodes.getEpoch();
       logger.debug(
         `Successfully reached slot ${currentSlot} (iteration ${

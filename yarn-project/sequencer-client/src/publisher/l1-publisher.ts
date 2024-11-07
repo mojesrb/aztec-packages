@@ -26,7 +26,7 @@ import { createDebugLogger } from '@aztec/foundation/log';
 import { type Tuple, serializeToBuffer } from '@aztec/foundation/serialize';
 import { InterruptibleSleep } from '@aztec/foundation/sleep';
 import { Timer } from '@aztec/foundation/timer';
-import { GerousiaAbi, RollupAbi } from '@aztec/l1-artifacts';
+import { GovernanceProposerAbi, RollupAbi } from '@aztec/l1-artifacts';
 import { type TelemetryClient } from '@aztec/telemetry-client';
 
 import pick from 'lodash.pick';
@@ -149,8 +149,8 @@ export class L1Publisher {
     typeof RollupAbi,
     WalletClient<HttpTransport, chains.Chain, PrivateKeyAccount>
   >;
-  private gerousiaContract?: GetContractReturnType<
-    typeof GerousiaAbi,
+  private governanceProposerContract?: GetContractReturnType<
+    typeof GovernanceProposerAbi,
     WalletClient<HttpTransport, chains.Chain, PrivateKeyAccount>
   > = undefined;
 
@@ -188,10 +188,10 @@ export class L1Publisher {
       client: this.walletClient,
     });
 
-    if (l1Contracts.gerousiaAddress) {
-      this.gerousiaContract = getContract({
-        address: getAddress(l1Contracts.gerousiaAddress.toString()),
-        abi: GerousiaAbi,
+    if (l1Contracts.governanceProposerAddress) {
+      this.governanceProposerContract = getContract({
+        address: getAddress(l1Contracts.governanceProposerAddress.toString()),
+        abi: GovernanceProposerAbi,
         client: this.walletClient,
       });
     }
@@ -239,8 +239,11 @@ export class L1Publisher {
     // FIXME: This should not throw if unable to propose but return a falsey value, so
     // we can differentiate between errors when hitting the L1 rollup contract (eg RPC error)
     // which may require a retry, vs actually not being the turn for proposing.
-    const ts = BigInt((await this.publicClient.getBlock()).timestamp + BigInt(ETHEREUM_SLOT_DURATION));
-    const [slot, blockNumber] = await this.rollupContract.read.canProposeAtTime([ts, `0x${archive.toString('hex')}`]);
+    const timeOfNextL1Slot = BigInt((await this.publicClient.getBlock()).timestamp + BigInt(ETHEREUM_SLOT_DURATION));
+    const [slot, blockNumber] = await this.rollupContract.read.canProposeAtTime([
+      timeOfNextL1Slot,
+      `0x${archive.toString('hex')}`,
+    ]);
     return [slot, blockNumber];
   }
 
@@ -302,9 +305,10 @@ export class L1Publisher {
   }
 
   public async validateProofQuote(quote: EpochProofQuote): Promise<EpochProofQuote | undefined> {
-    const args = [quote.toViemArgs()] as const;
+    const timeOfNextL1Slot = BigInt((await this.publicClient.getBlock()).timestamp + BigInt(ETHEREUM_SLOT_DURATION));
+    const args = [timeOfNextL1Slot, quote.toViemArgs()] as const;
     try {
-      await this.rollupContract.read.validateEpochProofRightClaim(args, { account: this.account });
+      await this.rollupContract.read.validateEpochProofRightClaimAtTime(args, { account: this.account });
     } catch (err) {
       const errorName = tryGetCustomErrorName(err);
       this.log.warn(`Proof quote validation failed: ${errorName}`);
@@ -381,7 +385,7 @@ export class L1Publisher {
       return false;
     }
 
-    if (!this.gerousiaContract) {
+    if (!this.governanceProposerContract) {
       return false;
     }
 
@@ -394,14 +398,17 @@ export class L1Publisher {
 
     const [proposer, roundNumber] = await Promise.all([
       this.rollupContract.read.getProposerAt([timestamp]),
-      this.gerousiaContract.read.computeRound([slotNumber]),
+      this.governanceProposerContract.read.computeRound([slotNumber]),
     ]);
 
     if (proposer != this.account.address) {
       return false;
     }
 
-    const [slotForLastVote] = await this.gerousiaContract.read.rounds([this.rollupContract.address, roundNumber]);
+    const [slotForLastVote] = await this.governanceProposerContract.read.rounds([
+      this.rollupContract.address,
+      roundNumber,
+    ]);
 
     if (slotForLastVote >= slotNumber) {
       return false;
@@ -414,7 +421,7 @@ export class L1Publisher {
 
     let txHash;
     try {
-      txHash = await this.gerousiaContract.write.vote([this.payload.toString()], {
+      txHash = await this.governanceProposerContract.write.vote([this.payload.toString()], {
         account: this.account,
       });
     } catch (err) {

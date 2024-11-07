@@ -12,20 +12,23 @@ class ClientIVCRecursiveVerifier {
     using RecursiveVerificationKey = RecursiveDeciderVerificationKeys::VerificationKey;
     using DeciderVerifier = DeciderRecursiveVerifier_<RecursiveFlavor>;
     using FoldingVerifier = ProtogalaxyRecursiveVerifier_<RecursiveDeciderVerificationKeys>;
+    using MegaVerifier = UltraRecursiveVerifier_<RecursiveFlavor>;
     using GoblinVerifier = GoblinRecursiveVerifier;
+    using Flavor = RecursiveFlavor::NativeFlavor;
+    using VerificationKey = Flavor::VerificationKey;
 
   public:
     using Proof = ClientIVC::Proof;
     using FoldVerifierInput = FoldingVerifier::VerifierInput;
     using GoblinVerifierInput = GoblinVerifier::VerifierInput;
     struct VerifierInput {
-        FoldVerifierInput fold_input;
+        std::shared_ptr<VerificationKey> mega_verification_key;
         GoblinVerifierInput goblin_input;
     };
 
     ClientIVCRecursiveVerifier(std::shared_ptr<Builder> builder, VerifierInput& verifier_input)
         : builder(builder)
-        , verifier_input(verifier_input){};
+        , verifier_input(verifier_input) {};
 
     void verify(const ClientIVC::Proof&);
 

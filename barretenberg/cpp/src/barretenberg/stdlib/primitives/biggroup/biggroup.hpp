@@ -75,6 +75,15 @@ template <class Builder, class Fq, class Fr, class NativeGroup> class element {
         }
     }
 
+    /**
+     * @brief Creates fixed witnesses from a constant element.
+     **/
+    void convert_constant_to_fixed_witness(Builder* builder)
+    {
+        this->x.convert_constant_to_fixed_witness(builder);
+        this->y.convert_constant_to_fixed_witness(builder);
+    }
+
     static element one(Builder* ctx)
     {
         uint256_t x = uint256_t(NativeGroup::one.x);
@@ -156,7 +165,7 @@ template <class Builder, class Fq, class Fr, class NativeGroup> class element {
         Fq y3_prev;
         bool is_element = false;
 
-        chain_add_accumulator(){};
+        chain_add_accumulator() {};
         explicit chain_add_accumulator(const element& input)
         {
             x3_prev = input.x;
@@ -300,7 +309,7 @@ template <class Builder, class Fq, class Fr, class NativeGroup> class element {
     static typename NativeGroup::affine_element compute_table_offset_generator();
 
     template <typename = typename std::enable_if<HasPlookup<Builder>>> struct four_bit_table_plookup {
-        four_bit_table_plookup(){};
+        four_bit_table_plookup() {};
         four_bit_table_plookup(const element& input);
 
         four_bit_table_plookup(const four_bit_table_plookup& other) = default;
@@ -317,7 +326,7 @@ template <class Builder, class Fq, class Fr, class NativeGroup> class element {
         enum CurveType { BN254, SECP256K1, SECP256R1 };
         eight_bit_fixed_base_table(const CurveType input_curve_type, bool use_endo)
             : curve_type(input_curve_type)
-            , use_endomorphism(use_endo){};
+            , use_endomorphism(use_endo) {};
 
         eight_bit_fixed_base_table(const eight_bit_fixed_base_table& other) = default;
         eight_bit_fixed_base_table& operator=(const eight_bit_fixed_base_table& other) = default;

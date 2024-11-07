@@ -4,13 +4,13 @@ import { AZTEC_SLOT_DURATION, ETHEREUM_SLOT_DURATION, EthAddress } from '@aztec/
 import { type DebugLogger, createDebugLogger } from '@aztec/foundation/log';
 import { RollupAbi } from '@aztec/l1-artifacts';
 import { type BootstrapNode } from '@aztec/p2p';
+import { createBootstrapNodeFromPrivateKey } from '@aztec/p2p/mocks';
 
 import getPort from 'get-port';
 import { getContract } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
 import {
-  createBootstrapNodeFromPrivateKey,
   createValidatorConfig,
   generateNodePrivateKeys,
   generatePeerIdPrivateKeys,
@@ -143,14 +143,20 @@ export class P2PNetworkTest {
 
   async stopNodes(nodes: AztecNodeService[]) {
     this.logger.info('Stopping nodes');
+
+    if (!nodes || !nodes.length) {
+      this.logger.info('No nodes to stop');
+      return;
+    }
+
     for (const node of nodes) {
       await node.stop();
     }
-    await this.bootstrapNode.stop();
     this.logger.info('Nodes stopped');
   }
 
   async teardown() {
+    await this.bootstrapNode.stop();
     await this.snapshotManager.teardown();
   }
 }
