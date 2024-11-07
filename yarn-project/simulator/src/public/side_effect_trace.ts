@@ -1,4 +1,4 @@
-import { PublicExecutionRequest, UnencryptedFunctionL2Logs, UnencryptedL2Log } from '@aztec/circuit-types';
+import { PublicExecutionRequest, SiblingPath, UnencryptedFunctionL2Logs, UnencryptedL2Log } from '@aztec/circuit-types';
 import {
   AvmAppendTreeHint,
   AvmContractBytecodeHints,
@@ -19,6 +19,7 @@ import {
   ContractStorageUpdateRequest,
   EthAddress,
   Gas,
+  L1_TO_L2_MSG_TREE_HEIGHT,
   L2ToL1Message,
   LogHash,
   MAX_L1_TO_L2_MSG_READ_REQUESTS_PER_TX,
@@ -31,11 +32,14 @@ import {
   MAX_PUBLIC_DATA_READS_PER_TX,
   MAX_PUBLIC_DATA_UPDATE_REQUESTS_PER_TX,
   MAX_UNENCRYPTED_LOGS_PER_TX,
+  NOTE_HASH_TREE_HEIGHT,
+  NULLIFIER_TREE_HEIGHT,
   NoteHash,
   Nullifier,
-  type NullifierLeafPreimage,
+  NullifierLeafPreimage,
+  PUBLIC_DATA_TREE_HEIGHT,
   type PublicCallRequest,
-  type PublicDataTreeLeafPreimage,
+  PublicDataTreeLeafPreimage,
   type PublicInnerCallRequest,
   ReadRequest,
   SerializableContractInstance,
@@ -57,6 +61,13 @@ import { SideEffectLimitReachedError } from './side_effect_errors.js';
 import { type PublicSideEffectTraceInterface } from './side_effect_trace_interface.js';
 
 export type TracedContractInstance = { exists: boolean } & ContractInstanceWithAddress;
+
+const emptyPublicDataPath = () =>
+  new SiblingPath(PUBLIC_DATA_TREE_HEIGHT, new Array(PUBLIC_DATA_TREE_HEIGHT)).toFields();
+const emptyNoteHashPath = () => new SiblingPath(NOTE_HASH_TREE_HEIGHT, new Array(NOTE_HASH_TREE_HEIGHT)).toFields();
+const emptyNullifierPath = () => new SiblingPath(NULLIFIER_TREE_HEIGHT, new Array(NULLIFIER_TREE_HEIGHT)).toFields();
+const emptyL1ToL2MessagePath = () =>
+  new SiblingPath(L1_TO_L2_MSG_TREE_HEIGHT, new Array(L1_TO_L2_MSG_TREE_HEIGHT)).toFields();
 
 export class PublicSideEffectTrace implements PublicSideEffectTraceInterface {
   public log = createDebugLogger('aztec:public_side_effect_trace');
@@ -110,9 +121,10 @@ export class PublicSideEffectTrace implements PublicSideEffectTraceInterface {
   public tracePublicStorageRead(
     contractAddress: Fr,
     slot: Fr,
-    leafPreimage: PublicDataTreeLeafPreimage,
-    leafIndex: Fr,
-    path: Fr[],
+    _value: Fr,
+    leafPreimage: PublicDataTreeLeafPreimage = PublicDataTreeLeafPreimage.empty(),
+    leafIndex: Fr = Fr.zero(),
+    path: Fr[] = emptyPublicDataPath(),
   ) {
     if (this.contractStorageReads.length >= MAX_PUBLIC_DATA_READS_PER_TX) {
       throw new SideEffectLimitReachedError('contract storage read', MAX_PUBLIC_DATA_READS_PER_TX);
@@ -136,11 +148,12 @@ export class PublicSideEffectTrace implements PublicSideEffectTraceInterface {
   public tracePublicStorageWrite(
     contractAddress: Fr,
     slot: Fr,
-    lowLeafPreimage: PublicDataTreeLeafPreimage,
-    lowLeafIndex: Fr,
-    lowLeafPath: Fr[],
-    newLeafPreimage: PublicDataTreeLeafPreimage,
-    insertionPath: Fr[],
+    _value: Fr,
+    lowLeafPreimage: PublicDataTreeLeafPreimage = PublicDataTreeLeafPreimage.empty(),
+    lowLeafIndex: Fr = Fr.zero(),
+    lowLeafPath: Fr[] = emptyPublicDataPath(),
+    newLeafPreimage: PublicDataTreeLeafPreimage = PublicDataTreeLeafPreimage.empty(),
+    insertionPath: Fr[] = emptyPublicDataPath(),
   ) {
     if (this.contractStorageUpdateRequests.length >= MAX_PUBLIC_DATA_UPDATE_REQUESTS_PER_TX) {
       throw new SideEffectLimitReachedError('contract storage write', MAX_PUBLIC_DATA_UPDATE_REQUESTS_PER_TX);
@@ -161,7 +174,13 @@ export class PublicSideEffectTrace implements PublicSideEffectTraceInterface {
   }
 
   // TODO(8287): _exists can be removed once we have the vm properly handling the equality check
-  public traceNoteHashCheck(_contractAddress: Fr, noteHash: Fr, leafIndex: Fr, exists: boolean, path: Fr[]) {
+  public traceNoteHashCheck(
+    _contractAddress: Fr,
+    noteHash: Fr,
+    leafIndex: Fr,
+    exists: boolean,
+    path: Fr[] = emptyNoteHashPath(),
+  ) {
     // NOTE: contractAddress is unused but will be important when an AVM circuit processes an entire enqueued call
     if (this.noteHashReadRequests.length >= MAX_NOTE_HASH_READ_REQUESTS_PER_TX) {
       throw new SideEffectLimitReachedError('note hash read request', MAX_NOTE_HASH_READ_REQUESTS_PER_TX);
@@ -176,7 +195,7 @@ export class PublicSideEffectTrace implements PublicSideEffectTraceInterface {
     // NOTE: counter does not increment for note hash checks (because it doesn't rely on pending note hashes)
   }
 
-  public traceNewNoteHash(_contractAddress: Fr, noteHash: Fr, leafIndex: Fr, path: Fr[]) {
+  public traceNewNoteHash(_contractAddress: Fr, noteHash: Fr, leafIndex: Fr, path: Fr[] = emptyNoteHashPath()) {
     if (this.noteHashes.length >= MAX_NOTE_HASHES_PER_TX) {
       throw new SideEffectLimitReachedError('note hash', MAX_NOTE_HASHES_PER_TX);
     }
@@ -192,9 +211,9 @@ export class PublicSideEffectTrace implements PublicSideEffectTraceInterface {
     _contractAddress: Fr,
     nullifier: Fr,
     exists: boolean,
-    lowLeafPreimage: NullifierLeafPreimage,
-    lowLeafIndex: Fr,
-    lowLeafPath: Fr[],
+    lowLeafPreimage: NullifierLeafPreimage = NullifierLeafPreimage.empty(),
+    lowLeafIndex: Fr = Fr.zero(),
+    lowLeafPath: Fr[] = emptyNullifierPath(),
   ) {
     // NOTE: contractAddress is unused but will be important when an AVM circuit processes an entire enqueued call
     // NOTE: isPending and leafIndex are unused for now but may be used for optimizations or kernel hints later
@@ -222,10 +241,10 @@ export class PublicSideEffectTrace implements PublicSideEffectTraceInterface {
   public traceNewNullifier(
     _contractAddress: Fr,
     nullifier: Fr,
-    lowLeafPreimage: NullifierLeafPreimage,
-    lowLeafIndex: Fr,
-    lowLeafPath: Fr[],
-    insertionPath: Fr[],
+    lowLeafPreimage: NullifierLeafPreimage = NullifierLeafPreimage.empty(),
+    lowLeafIndex: Fr = Fr.zero(),
+    lowLeafPath: Fr[] = emptyNullifierPath(),
+    insertionPath: Fr[] = emptyNullifierPath(),
   ) {
     // NOTE: contractAddress is unused but will be important when an AVM circuit processes an entire enqueued call
     if (this.nullifiers.length >= MAX_NULLIFIERS_PER_TX) {
@@ -240,7 +259,13 @@ export class PublicSideEffectTrace implements PublicSideEffectTraceInterface {
   }
 
   // TODO(8287): _exists can be removed once we have the vm properly handling the equality check
-  public traceL1ToL2MessageCheck(_contractAddress: Fr, msgHash: Fr, msgLeafIndex: Fr, exists: boolean, path: Fr[]) {
+  public traceL1ToL2MessageCheck(
+    _contractAddress: Fr,
+    msgHash: Fr,
+    msgLeafIndex: Fr,
+    exists: boolean,
+    path: Fr[] = emptyL1ToL2MessagePath(),
+  ) {
     // NOTE: contractAddress is unused but will be important when an AVM circuit processes an entire enqueued call
     if (this.l1ToL2MsgReadRequests.length >= MAX_L1_TO_L2_MSG_READ_REQUESTS_PER_TX) {
       throw new SideEffectLimitReachedError('l1 to l2 message read request', MAX_L1_TO_L2_MSG_READ_REQUESTS_PER_TX);
