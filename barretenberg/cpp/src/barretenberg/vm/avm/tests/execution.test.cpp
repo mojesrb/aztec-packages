@@ -1679,6 +1679,11 @@ TEST_F(AvmExecutionTests, kernelOutputEmitOpcodes)
     std::string bytecode_hex = to_hex(OpCode::SET_8) +                // opcode Set
                                "00"                                   // Indirect flag
                                + to_hex(AvmMemoryTag::U32) +          // tag U32
+                               "00"                                   // value 0
+                               "02"                                   // dst_offset 2
+                               + to_hex(OpCode::SET_8) +              // opcode Set
+                               "00"                                   // Indirect flag
+                               + to_hex(AvmMemoryTag::U32) +          // tag U32
                                "01"                                   // value 1
                                "01"                                   // dst_offset 1
                                + to_hex(OpCode::CAST_8) +             // opcode CAST (to field)
@@ -1708,7 +1713,7 @@ TEST_F(AvmExecutionTests, kernelOutputEmitOpcodes)
     auto bytecode = hex_to_bytes(bytecode_hex);
     auto instructions = Deserialization::parse_bytecode_statically(bytecode);
 
-    ASSERT_THAT(instructions, SizeIs(7));
+    ASSERT_THAT(instructions, SizeIs(8));
 
     std::vector<FF> calldata = {};
     std::vector<FF> returndata = {};
@@ -1751,8 +1756,9 @@ TEST_F(AvmExecutionTests, kernelOutputEmitOpcodes)
         std::ranges::find_if(trace.begin(), trace.end(), [](Row r) { return r.main_sel_op_emit_unencrypted_log == 1; });
     ASSERT_TRUE(emit_log_row != trace.end());
 
-    // Trust me bro for now, this is the truncated sha output
-    FF expected_hash = FF(std::string("0x00b5c135991581f3049df936e35ef23af34bb04a4775426481d944d35a618e9d"));
+    // Warning: The following hash depends on the contract instance address, i.e., any modifications of the bytecode
+    // above will affect this hash.
+    FF expected_hash = FF(std::string("0x00866d9ba8bbca359589c02f03188a2b8368c3e1284a714b9e65b644063c86ab"));
     EXPECT_EQ(emit_log_row->main_ia, expected_hash);
     EXPECT_EQ(emit_log_row->main_side_effect_counter, 2);
     // Value is 40 = 32 * log_length + 40 (and log_length is 0 in this case).
