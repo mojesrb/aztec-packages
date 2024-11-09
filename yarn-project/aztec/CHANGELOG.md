@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.63.0](https://github.com/AztecProtocol/aztec-packages/compare/aztec-package-v0.62.0...aztec-package-v0.63.0) (2024-11-09)
+
+
+### Features
+
+* Extract gossipsub / discv5 dependency gauge prometheus metrics ([#9710](https://github.com/AztecProtocol/aztec-packages/issues/9710)) ([58e75cd](https://github.com/AztecProtocol/aztec-packages/commit/58e75cdcc13de19bf5c1aedf7e66ce16e8cd4aaf))
+
+
+### Bug Fixes
+
+* Telemetry stopping on shutdown ([#9740](https://github.com/AztecProtocol/aztec-packages/issues/9740)) ([23b8d8b](https://github.com/AztecProtocol/aztec-packages/commit/23b8d8b15e2a8f5473e6bfedf62e9f1b35c9919c))
+
+
+### Miscellaneous
+
+* Move epoch and slot durations to config ([#9861](https://github.com/AztecProtocol/aztec-packages/issues/9861)) ([bfd4f2c](https://github.com/AztecProtocol/aztec-packages/commit/bfd4f2ce49393c4629563c07a89f19ebaf9aaab2))
+
 ## [0.62.0](https://github.com/AztecProtocol/aztec-packages/compare/aztec-package-v0.61.0...aztec-package-v0.62.0) (2024-11-01)
 
 
